@@ -1,10 +1,10 @@
 #include <ankerl/unordered_dense.h> // for map, hash
 
+#include <app/doctest.h>           // for TestCase, skip, ResultBuilder
 #include <app/geomean.h>           // for geomean
 #include <third-party/nanobench.h> // for Rng, doNotOptimizeAway, Bench
 
-#include <doctest.h>  // for TestCase, skip, ResultBuilder
-#include <fmt/core.h> // for print, format
+#include <fmt/format.h> // for print, format
 
 #include <chrono>        // for duration, operator-, high_resolu...
 #include <cstdint>       // for uint64_t
@@ -26,7 +26,7 @@ inline auto init_key() -> K {
 
 template <typename T>
 inline void randomize_key(ankerl::nanobench::Rng* rng, int n, T* key) {
-    // we limit ourselfes to 32bit n
+    // we limit ourselves to 32bit n
     auto limited = (((*rng)() >> 32U) * static_cast<uint64_t>(n)) >> 32U;
     *key = static_cast<T>(limited);
 }

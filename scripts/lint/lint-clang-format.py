@@ -1,50 +1,79 @@
 #!/usr/bin/env python3
+"""Check that the sources are clang-format clean, at a pinned version.
 
-from glob import glob
+The version is pinned because clang-format's output moves between releases: 18 and 21 disagree
+about where a trailing return type breaks, so an unpinned run would call a tree formatted by one
+of them broken under the other, and "fixing" that would break it for everyone else. 21 is what
+this tree is formatted with.
+
+That is also why a version other than the pinned one is skipped rather than run: its complaints
+would be about the version, not about the code. Install the pinned one with
+
+    pip install clang-format==21.1.8
+
+or point UNORDERED_DENSE_CLANG_FORMAT at the binary to use.
+"""
+
+import os
 from pathlib import Path
-from subprocess import run
-from os import path
-import subprocess
-import sys
-from time import time
 import re
+import shutil
+from subprocess import run
 
-root_path = path.abspath(Path(__file__).parent.parent.parent)
+ROOT = Path(__file__).resolve().parents[2]
+PATTERNS = ["include/**/*.h", "test/**/*.h", "test/**/*.cpp"]
+EXCLUDE_RE = re.compile(r"nanobench\.h|FuzzedDataProvider\.h|/third-party/")
+PINNED_MAJOR = 21
 
-globs = [
-    f"{root_path}/include/**/*.h",
-    f"{root_path}/test/**/*.h",
-    f"{root_path}/test/**/*.cpp",
-]
-exclusions = [
-    "nanobench\.h",
-    "FuzzedDataProvider\.h",
-    '/third-party/']
 
-files = []
-for g in globs:
-    r = glob(g, recursive=True)
-    files.extend(r)
+def collect_files(root: Path):
+    return [
+        f
+        for p in PATTERNS
+        for f in root.glob(p)
+        if f.is_file() and not EXCLUDE_RE.search(str(f))
+    ]
 
-# filter out exclusions
-for exclusion in exclusions:
-    l = filter(lambda file: re.search(exclusion, file) == None, files)
-    files = list(l)
 
-if len(files) == 0:
-    print("could not find any files!")
-    sys.exit(1)
+def major_version_of(binary: str):
+    """Major version of a clang-format binary, or None if it cannot be asked."""
+    res = run([binary, "--version"], capture_output=True, text=True)
+    if res.returncode != 0:
+        return None
+    m = re.search(r"clang-format version (\d+)\.", res.stdout)
+    return int(m.group(1)) if m else None
 
-command = ['clang-format', '--dry-run', '-Werror'] + files
-p = subprocess.Popen(command,
-                     stdout=subprocess.PIPE,
-                     stderr=None,
-                     stdin=subprocess.PIPE,
-                     universal_newlines=True)
 
-stdout, stderr = p.communicate()
+def find_clang_format():
+    candidates = [
+        os.environ.get("UNORDERED_DENSE_CLANG_FORMAT"),
+        f"clang-format-{PINNED_MAJOR}",
+        "clang-format",
+    ]
+    for candidate in candidates:
+        if candidate and (path := shutil.which(candidate)) and major_version_of(path) == PINNED_MAJOR:
+            return path
+    return None
 
-print(f"clang-format checked {len(files)} files")
 
-if p.returncode != 0:
-    sys.exit(p.returncode)
+def main():
+    files = collect_files(ROOT)
+    if not files:
+        print("could not find any files!")
+        raise SystemExit(1)
+
+    if not (clang_format := find_clang_format()):
+        print(
+            f"SKIPPED clang-format: no clang-format {PINNED_MAJOR} available. Install it with "
+            f"'pip install clang-format=={PINNED_MAJOR}.1.8', or point "
+            "UNORDERED_DENSE_CLANG_FORMAT at it."
+        )
+        raise SystemExit(0)
+
+    ec = run([clang_format, "--dry-run", "-Werror"] + files).returncode
+    print(f"clang-format ({clang_format}) checked {len(files)} files")
+    raise SystemExit(ec)
+
+
+if __name__ == "__main__":
+    main()

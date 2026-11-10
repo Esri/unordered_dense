@@ -3,26 +3,62 @@
 #include <ankerl/unordered_dense.h>
 #include <app/counter.h>
 
+#if defined(__clang__)
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-W#warnings"
+#endif
 #include <doctest.h>
+#if defined(__clang__)
+#    pragma clang diagnostic pop
+#endif
+
+#if defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
+#    undef DOCTEST_REQUIRE
+#    define DOCTEST_REQUIRE(...)  \
+        do {                      \
+            if (!(__VA_ARGS__)) { \
+                std::abort();     \
+            }                     \
+        } while (0)
+#endif
+
+namespace doctest {
+
+[[nodiscard]] auto current_test_name() -> char const*;
+
+} // namespace doctest
 
 #include <deque>
+#include <sstream>
 
 template <class Key,
           class T,
           class Hash = ankerl::unordered_dense::hash<Key>,
           class KeyEqual = std::equal_to<Key>,
           class AllocatorOrContainer = std::deque<std::pair<Key, T>>,
-          class Bucket = ankerl::unordered_dense::bucket_type::standard>
-using deque_map = ankerl::unordered_dense::detail::table<Key, T, Hash, KeyEqual, AllocatorOrContainer, Bucket, false>;
+          class Bucket = ankerl::unordered_dense::bucket_type::standard,
+          class BucketContainer = std::deque<Bucket>>
+class deque_map : public ankerl::unordered_dense::detail::
+                      table<Key, T, Hash, KeyEqual, AllocatorOrContainer, Bucket, BucketContainer, false> {
+    using base_t =
+        ankerl::unordered_dense::detail::table<Key, T, Hash, KeyEqual, AllocatorOrContainer, Bucket, BucketContainer, false>;
+    using base_t::base_t;
+};
 
 template <class Key,
           class Hash = ankerl::unordered_dense::hash<Key>,
           class KeyEqual = std::equal_to<Key>,
           class AllocatorOrContainer = std::deque<Key>,
-          class Bucket = ankerl::unordered_dense::bucket_type::standard>
-using deque_set = ankerl::unordered_dense::detail::table<Key, void, Hash, KeyEqual, AllocatorOrContainer, Bucket, false>;
+          class Bucket = ankerl::unordered_dense::bucket_type::standard,
+          class BucketContainer = std::deque<Bucket>>
+class deque_set : public ankerl::unordered_dense::detail::
+                      table<Key, void, Hash, KeyEqual, AllocatorOrContainer, Bucket, BucketContainer, false> {
+    using base_t = ankerl::unordered_dense::detail::
+        table<Key, void, Hash, KeyEqual, AllocatorOrContainer, Bucket, BucketContainer, false>;
+    using base_t::base_t;
+};
 
-// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage,misc-use-anonymous-namespace)
 #define TEST_CASE_MAP(name, ...)                                            \
     TEST_CASE_TEMPLATE(name,                                                \
                        map_t,                                               \
@@ -38,15 +74,15 @@ using deque_set = ankerl::unordered_dense::detail::table<Key, void, Hash, KeyEqu
                        ankerl::unordered_dense::segmented_set<__VA_ARGS__>, \
                        deque_set<__VA_ARGS__>)
 
-// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define TYPE_TO_STRING_MAP(...)                                                    \
-    TYPE_TO_STRING(ankerl::unordered_dense::map<__VA_ARGS__>);          /*NOLINT*/ \
-    TYPE_TO_STRING(ankerl::unordered_dense::segmented_map<__VA_ARGS__>) /*NOLINT*/
+#define TYPE_TO_STRING_MAP(...)                                          /*NOLINT*/ \
+    TYPE_TO_STRING(ankerl::unordered_dense::map<__VA_ARGS__>);           /*NOLINT*/ \
+    TYPE_TO_STRING(ankerl::unordered_dense::segmented_map<__VA_ARGS__>); /*NOLINT*/ \
+    TYPE_TO_STRING(deque_map<__VA_ARGS__>)                               /*NOLINT*/
 
-// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define TYPE_TO_STRING_SET(...)                                                    \
-    TYPE_TO_STRING(ankerl::unordered_dense::set<__VA_ARGS__>);          /*NOLINT*/ \
-    TYPE_TO_STRING(ankerl::unordered_dense::segmented_set<__VA_ARGS__>) /*NOLINT*/
+#define TYPE_TO_STRING_SET(...)                                          /*NOLINT*/ \
+    TYPE_TO_STRING(ankerl::unordered_dense::set<__VA_ARGS__>);           /*NOLINT*/ \
+    TYPE_TO_STRING(ankerl::unordered_dense::segmented_set<__VA_ARGS__>); /*NOLINT*/ \
+    TYPE_TO_STRING(deque_set<__VA_ARGS__>)                               /*NOLINT*/
 
 #if defined(ANKERL_UNORDERED_DENSE_PMR)
 

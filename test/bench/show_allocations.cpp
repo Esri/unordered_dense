@@ -2,19 +2,20 @@
 #include <ankerl/unordered_dense.h> // for map, operator==
 
 #include <app/counting_allocator.h>
-
+#include <app/doctest.h>
 #include <third-party/nanobench.h>
 
 #if __has_include("boost/unordered/unordered_flat_map.hpp")
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wold-style-cast"
+#    if defined(__clang__)
+#        pragma clang diagnostic push
+#        pragma clang diagnostic ignored "-Wold-style-cast"
+#    endif
 #    include "boost/unordered/unordered_flat_map.hpp"
 #    define HAS_BOOST_UNORDERED_FLAT_MAP() 1 // NOLINT(cppcoreguidelines-macro-usage)
 #else
 #    define HAS_BOOST_UNORDERED_FLAT_MAP() 0 // NOLINT(cppcoreguidelines-macro-usage)
 #endif
 
-#include <doctest.h>
 #include <fmt/ostream.h>
 
 #include <deque>
